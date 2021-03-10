@@ -8,17 +8,24 @@ So the goal here would be
 
 # imports
 import os,sys
+import time
 from datetime import datetime,timedelta
 import re
 from selenium.webdriver import Firefox
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 # get loogger and utils
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from logger import logger_data
 
 # get data
-import * from dl_csv
+from dl_csv import download_csv
+
+# platforms to get
+platforms = ['Switch','PS4']
 
 # setting up firefox headless browser
 opts = Options()
@@ -37,11 +44,16 @@ while True:
     popups = browser.find_elements_by_xpath("//span[contains(@id,'cmpwelcomebtnno')]")
     if len(popups) != 0:
         popups[0].click()
+    time.sleep(1)
 
     # get games and dates
+    game_scores = [i.text for i in browser.find_elements_by_xpath("//div[contains(@class,'score col-auto')]")]
     game_names = [i.text for i in browser.find_elements_by_xpath("//div[contains(@class,'game-name col')]//a")]
     game_links = [i.get_attribute('href') for i in browser.find_elements_by_xpath("//div[contains(@class,'game-name col')]//a")]
     date_results = [i.text for i in browser.find_elements_by_xpath("//div[contains(@class,'first-release-date')]//span")]
+    game_platforms = [i.text.split(", ") for i in browser.find_elements_by_xpath("//div[contains(@class,'platforms col-auto')]")]
+
+    logger_data.info(f"{len(game_names)} available, attempt downloading files.")
 
     # change dates to datetime
     # test: ensure formats are like this
@@ -51,17 +63,19 @@ while True:
     # today's date
     dt_now = datetime.now()
 
-    for game,link,dt in zip(game_names,game_links,date_dts):
-        if dt <= (dt_now - timedelta(days=7)):
-            # run individual stuff here
-            pass
+    for score,game,link,dt,platform in zip(game_scores,game_names,game_links,date_dts,game_platforms):
+        if (dt <= (dt_now - timedelta(days=7))) and (any(x in platforms for x in platform)) and len(score) > 0:
+            # download page
+            logger_data.info(f"Start scraping {game}")
+            download_csv(link,game)
 
     # add pg_num
     pg_num += 1
 
     # click to move to next page
-    nav = browser.find_elements_by_xpath("//a[contains(@rel,'next')]")
-    nav.click()
+    browser.execute_script("arguments[0].click();",
+                           WebDriverWait(browser, 20).until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@rel,'next')]"))))
+    time.sleep(3)
 
     # retrieve next pg_num
     current_pg = browser.find_element_by_xpath("//span[contains(@class,'px-4')]").text
@@ -69,6 +83,7 @@ while True:
 
     # break if intended next pg number is less than actual pg_num
     if current_pg < pg_num:
+        logger_data.info("Reached last page, scraping will stop.")
         break
 
 # close browser
