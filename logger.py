@@ -23,7 +23,7 @@ file_handler_data.setFormatter(file_formatter)
 
 # set levels
 logger_data.setLevel(logging.DEBUG)
-shell_handler.setLevel(logging.DEBUG)
+shell_handler.setLevel(logging.INFO)
 file_handler_data.setLevel(logging.DEBUG)
 
 # add handlers
